@@ -3,11 +3,12 @@
 # godeye --- ver.0.1 --- wrote by Tatsuya Koyama --- 2011-06-14
 #
 # [USAGE]
-#     godeye [-d] [-L level] [-f] [-c column] [-h height]
+#     godeye [-d] [-a] [-L level] [-f] [-c column] [-h height]
 #
 # [OPTIONS]
 #     -d       : ディレクトリのみ表示
-#     -L level : 指定した深さまでしか表示しない（速くない。File::Find にオプションが見つからないんだもん）
+#     -a       : ドットから始まる隠しファイルも表示
+#     -L level : 指定した深さまでしか表示しない
 #     -f       : ディレクトリの末尾に、(直下のファイル数 / 下の総ファイル数) を表示
 #     -c column: カラム数を指定
 #     -h height: 基準の表示縦幅を設定
@@ -25,7 +26,7 @@ use File::Find;
 use File::Path;
 use Term::ReadKey;
 
-GetOptions( \my %opt, qw/d f L:i c:i h:i/ );
+GetOptions( \my %opt, qw/d a L:i f c:i h:i/ );
 
 my $startDir = $ARGV[0] || "./";
 $startDir =~ s(\/$)();
@@ -58,13 +59,21 @@ File::Find::find( \&setFileName, $startDir );
 sub setFileName {
 	++$countDir  if -d $_;
 	++$countFile if -f $_;
-	return if ($opt{d}  &&  -f $_);
+	return if ( $opt{d}  &&  -f $_);
 	
 	my $fileName = $File::Find::name;
-	$fileName =~ s(^${startDir}\/)();
+	$fileName =~ s(^${startDir}\/?)();
+	if (!$opt{a}  &&  ($fileName =~ /^\./  ||  $fileName =~ /\/\./)) {
+		$File::Find::prune = 1;
+		return;
+	}
+	
 	my $dirLevel = getDirLevel( $fileName );
 	$maxDirLv = $dirLevel if ($maxDirLv < $dirLevel);
-	return if ($opt{L}  &&  $dirLevel >= $opt{L});
+	if ($opt{L}  &&  $dirLevel >= $opt{L}) {
+		$File::Find::prune = 1;
+		return;
+	}
 	
 	my $isDir = (-d $_);
 	my $numOwnFile  = 0;
