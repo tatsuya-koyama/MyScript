@@ -1,37 +1,87 @@
 #!/usr/bin/perl
+
+# godeye --- ver.0.1 --- wrote by Tatsuya Koyama --- 2011-06-14
+#
+# [USAGE]
+#     godeye [-d] [-L level] [-f] [-c column] [-h height]
+#
+# [OPTIONS]
+#     -d       : ディレクトリのみ表示
+#     -L level : 指定した深さまでしか表示しない（速くない。File::Find にオプションが見つからないんだもん）
+#     -f       : ディレクトリの末尾に、(直下のファイル数 / 下の総ファイル数) を表示
+#     -c column: カラム数を指定
+#     -h height: 基準の表示縦幅を設定
+#
+# 色付きの tree を表示する。
+# まあ tree -F -C --charset ascii で十分なんだけど、
+# ディレクトリレベルに対して色付けしたり、マルチカラムで表示したりしてみたかったので
+# カッとなって書いてしまったやっつけスクリプト。
+
 use strict;
 use warnings;
+use Getopt::Long;
 use File::Basename;
 use File::Find;
 use File::Path;
 use Term::ReadKey;
 
+GetOptions( \my %opt, qw/d f L:i c:i h:i/ );
+
 my $startDir = $ARGV[0] || "./";
-$startDir =~ s{\/$}{};
+$startDir =~ s(\/$)();
 unless (-d $startDir) {
 	print "sorry, [$startDir] is not directory.\n";
 	exit;
 }
 
+#---------- working memory
+my ($termWidth, $termHeight) = GetTerminalSize();
 my @fileNames    = ();
 my $maxDirLv     = 0;
 my $maxLength    = 0;
+my $countDir     = 0;
+my $countFile    = 0;
+
+#---------- parameters
 my $columnMargin = 4;
-my $minHeight    = 30; #----- 最低でもこれ以上の高さになるように表示
+my $minHeight    = $termHeight - 9; #----- 最低でもこれ以上の高さになるように表示
+
+$minHeight = 20 if ($minHeight < 20);
+if ($opt{h}) { $minHeight = $opt{h} || 20; }
 
 
 print "target directory: $startDir\n";
 putLine();
 
 #---------- get file tree
-File::Find::find( \&getFileName, $startDir );
-sub getFileName {
+File::Find::find( \&setFileName, $startDir );
+sub setFileName {
+	++$countDir  if -d $_;
+	++$countFile if -f $_;
+	return if ($opt{d}  &&  -f $_);
+	
 	my $fileName = $File::Find::name;
-	$fileName =~ s{^${startDir}\/}{};
+	$fileName =~ s(^${startDir}\/)();
 	my $dirLevel = getDirLevel( $fileName );
 	$maxDirLv = $dirLevel if ($maxDirLv < $dirLevel);
+	return if ($opt{L}  &&  $dirLevel >= $opt{L});
+	
 	my $isDir = (-d $_);
-	push @fileNames, +{ name => $_, lv => $dirLevel, dir => $isDir, tail => '', show => 0 };
+	my $numOwnFile  = 0;
+	my $numOwnFileR = 0;
+	if ($opt{f}  &&  $isDir) {
+		$numOwnFile  = int(`find $_ -type f -maxdepth 1 | wc -l`);
+		$numOwnFileR = int(`find $_ | wc -l`) - 1;
+	}
+	push @fileNames, +{
+		name  => $_,
+		lv    => $dirLevel,
+		dir   => $isDir,
+		tail  => '',
+		show  => 0,
+		file  => $numOwnFile,
+		fileR => $numOwnFileR,
+	};
 }
 
 #---------- set info to make pretty branch
@@ -47,7 +97,7 @@ for my $i (reverse @fileNames) {
 	}
 }
 
-#---------- set results
+#---------- set output results
 my @lines = ();
 for my $i (@fileNames) {
 	my $colorLine = '';
@@ -58,8 +108,6 @@ for my $i (@fileNames) {
 		$colorLine .= getColorCodeWithNumber( $lv );
 		my $branch = (
 			($i->{show} & (1 << $lv))
-			#?  '│   '
-			#:  '     '
 			? '|   '
 			: '    '
 		);
@@ -69,34 +117,40 @@ for my $i (@fileNames) {
 	
 	$colorLine .= getColorCodeWithNumber( $i->{lv} );
 	if ($i->{tail}) {
-		#$colorLine .= '└── ';
-		#$plainLine .= '└── ';
 		$colorLine .= '`---';
 		$plainLine .= '`---';
 	} else {
-		#$colorLine .= '├── ' if ($i->{name} ne $startDir);
-		#$plainLine .= '├── ' if ($i->{name} ne $startDir);
 		$colorLine .= '|---' if ($i->{name} ne $startDir);
 		$plainLine .= '|---' if ($i->{name} ne $startDir);
 	}
 	
+	$colorLine .= getColorCodeWithNumber( $i->{lv}, 1 ) if $i->{dir};
 	$colorLine .= "$i->{name}".($i->{dir} ? '/' : '');
 	$plainLine .= "$i->{name}".($i->{dir} ? '/' : '');
+	
+	if ($opt{f}  &&  $i->{dir}) {
+		$colorLine .= getColorCodeWithNumber( $i->{lv}, 0 );
+		$colorLine .= " ($i->{file}/$i->{fileR})";
+		$plainLine .= " ($i->{file}/$i->{fileR})";
+	}
+	
 	my $lineLength = length($plainLine);
 	push @lines, +{ text => $colorLine, len => $lineLength };
 	$maxLength = $lineLength if ($maxLength < $lineLength);
 }
 
-#----- set the number of columns
+#---------- set the number of columns
 my $numCol = 1;
 my $numLine = scalar(@lines);
-if ($numLine > $minHeight) {
-	my ($termWidth, $termHeight) = GetTerminalSize();
+if ($opt{c}) {
+	$numCol = $opt{c} || 1;
+}
+elsif ($numLine > $minHeight) {
 	$numCol = int($termWidth / ($maxLength + $columnMargin)) || 1;
-	--$numCol while ($numCol > 1  &&  $numLine / $numCol < $minHeight);
+	--$numCol while ($numCol > 1  &&  $numLine / ($numCol-1) < $minHeight);
 }
 
-#----- display in multi columns
+#---------- display colorful tree in multi columns
 my $offset = int( $numLine / $numCol );
 $offset += 1 if ($offset * $numCol < $numLine);
 
@@ -117,22 +171,25 @@ for (my $i=0;  $i < $offset;  $i++) {
 	print "\n";
 }
 
+#---------- display info
+print getColorCode();
+print "\n$countDir directories, $countFile files\n";
 
-#----- functions
-#---------------------------------------------------------------------
+#---------- functions
+#-------------------------------------------------------------------------------
 sub putLine {
 	my ($termWidth, $termHeight) = GetTerminalSize();
 	print '-' x ($termWidth - 1), "\n";
 }
 
-#---------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 sub getDirLevel {
 	my ($fileName) = @_;
 	my $dirLevel = $fileName;
-	$dirLevel = ($dirLevel =~ s{\/}{}g) || 0;
+	$dirLevel = ($dirLevel =~ s(\/)()g) || 0;
 }
 
-#---------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 sub flgsToInt {
 	my ($flgs) = @_;
 	my $result = 0;
@@ -142,7 +199,7 @@ sub flgsToInt {
 	return $result;
 }
 
-#---------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 sub getColorCode {
 	my ($colorName) = @_;
 	unless ($colorName) {
@@ -161,14 +218,16 @@ sub getColorCode {
 	return "\033[0;${colorCode}m";
 }
 
-#---------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 sub getColorCodeWithNumber {
-	my ($num) = @_;
+	my ($num, $bright) = @_;
 	my @colors = (0, 34, 33, 31, 32, 35, 36);
 	my $colorCode = $colors[ $num % scalar(@colors) ];
 	unless ($colorCode) {
 		return "\033[0m"; #Default color
 	}
-	return "\033[0;${colorCode}m";
+	return ($bright)
+		? "\033[1;${colorCode}m"
+		: "\033[0;${colorCode}m";
 }
 
