@@ -1,0 +1,174 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename;
+use File::Find;
+use File::Path;
+use Term::ReadKey;
+
+my $startDir = $ARGV[0] || "./";
+$startDir =~ s{\/$}{};
+unless (-d $startDir) {
+	print "sorry, [$startDir] is not directory.\n";
+	exit;
+}
+
+my @fileNames    = ();
+my $maxDirLv     = 0;
+my $maxLength    = 0;
+my $columnMargin = 4;
+my $minHeight    = 30; #----- 最低でもこれ以上の高さになるように表示
+
+
+print "target directory: $startDir\n";
+putLine();
+
+#---------- get file tree
+File::Find::find( \&getFileName, $startDir );
+sub getFileName {
+	my $fileName = $File::Find::name;
+	$fileName =~ s{^${startDir}\/}{};
+	my $dirLevel = getDirLevel( $fileName );
+	$maxDirLv = $dirLevel if ($maxDirLv < $dirLevel);
+	my $isDir = (-d $_);
+	push @fileNames, +{ name => $_, lv => $dirLevel, dir => $isDir, tail => '', show => 0 };
+}
+
+#---------- set info to make pretty branch
+my $appearFlgs = {};
+for my $i (reverse @fileNames) {
+	my $f = $appearFlgs;
+	unless ($f->{ $i->{lv} }) {$i->{tail} = 1;}
+	$f->{ $i->{lv} } = 1;
+	$i->{show} = flgsToInt( $appearFlgs );
+	
+	for (my $lv = $i->{lv}+1;  $lv <= $maxDirLv;  $lv++) {
+		if ($f->{$lv}) {$f->{$lv} = 0;}
+	}
+}
+
+#---------- set results
+my @lines = ();
+for my $i (@fileNames) {
+	my $colorLine = '';
+	my $plainLine = ''; #----- to count pure text length
+	$colorLine .= getColorCode();
+	
+	for (my $lv = 0;  $lv < $i->{lv};  $lv++) {
+		$colorLine .= getColorCodeWithNumber( $lv );
+		my $branch = (
+			($i->{show} & (1 << $lv))
+			#?  '│   '
+			#:  '     '
+			? '|   '
+			: '    '
+		);
+		$colorLine .= $branch;
+		$plainLine .= $branch;
+	}
+	
+	$colorLine .= getColorCodeWithNumber( $i->{lv} );
+	if ($i->{tail}) {
+		#$colorLine .= '└── ';
+		#$plainLine .= '└── ';
+		$colorLine .= '`---';
+		$plainLine .= '`---';
+	} else {
+		#$colorLine .= '├── ' if ($i->{name} ne $startDir);
+		#$plainLine .= '├── ' if ($i->{name} ne $startDir);
+		$colorLine .= '|---' if ($i->{name} ne $startDir);
+		$plainLine .= '|---' if ($i->{name} ne $startDir);
+	}
+	
+	$colorLine .= "$i->{name}".($i->{dir} ? '/' : '');
+	$plainLine .= "$i->{name}".($i->{dir} ? '/' : '');
+	my $lineLength = length($plainLine);
+	push @lines, +{ text => $colorLine, len => $lineLength };
+	$maxLength = $lineLength if ($maxLength < $lineLength);
+}
+
+#----- set the number of columns
+my $numCol = 1;
+my $numLine = scalar(@lines);
+if ($numLine > $minHeight) {
+	my ($termWidth, $termHeight) = GetTerminalSize();
+	$numCol = int($termWidth / ($maxLength + $columnMargin)) || 1;
+	--$numCol while ($numCol > 1  &&  $numLine / $numCol < $minHeight);
+}
+
+#----- display in multi columns
+my $offset = int( $numLine / $numCol );
+$offset += 1 if ($offset * $numCol < $numLine);
+
+for (my $i=0;  $i < $offset;  $i++) {
+	
+	my $prevLine;
+	for (my $c=0;  $c < $numCol;  $c++) {
+		my $line = $lines[ ($offset * $c) + $i ];
+		next unless $line;
+		if ($c == 0) {
+			print $line->{text};
+		} else {
+			my $spaceWidth = ($columnMargin + $maxLength - $prevLine->{len});
+			print ''.(' ' x $spaceWidth).$line->{text};
+		}
+		$prevLine = $line;
+	}
+	print "\n";
+}
+
+
+#----- functions
+#---------------------------------------------------------------------
+sub putLine {
+	my ($termWidth, $termHeight) = GetTerminalSize();
+	print '-' x ($termWidth - 1), "\n";
+}
+
+#---------------------------------------------------------------------
+sub getDirLevel {
+	my ($fileName) = @_;
+	my $dirLevel = $fileName;
+	$dirLevel = ($dirLevel =~ s{\/}{}g) || 0;
+}
+
+#---------------------------------------------------------------------
+sub flgsToInt {
+	my ($flgs) = @_;
+	my $result = 0;
+	for my $i (keys %$flgs) {
+		if ($flgs->{$i}) {$result += (1 << $i);}
+	}
+	return $result;
+}
+
+#---------------------------------------------------------------------
+sub getColorCode {
+	my ($colorName) = @_;
+	unless ($colorName) {
+		return "\033[0m"; #Default color
+	}
+	
+	my $colors = +{
+		red    => 31,
+		green  => 32,
+		yellow => 33,
+		blue   => 34,
+		purple => 35,
+		cyan   => 36,
+	};
+	my $colorCode = $colors->{ $colorName };
+	return "\033[0;${colorCode}m";
+}
+
+#---------------------------------------------------------------------
+sub getColorCodeWithNumber {
+	my ($num) = @_;
+	my @colors = (0, 34, 33, 31, 32, 35, 36);
+	my $colorCode = $colors[ $num % scalar(@colors) ];
+	unless ($colorCode) {
+		return "\033[0m"; #Default color
+	}
+	return "\033[0;${colorCode}m";
+}
+
