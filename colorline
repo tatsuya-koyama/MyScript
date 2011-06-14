@@ -1,0 +1,29 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+# 36 Cyan
+# 35 Light Purple
+# 34 Light Blue
+# 33 Yellow
+# 32 Light Green
+# 31 Light Red
+my @colors = (35, 32, 33, 31, 36, 34);
+my $color_reverse = "\033\[0;7m";
+my $reverse_off   = "\033\[0;0m";
+
+print '-' x 100, "\n";
+while (my $line = <STDIN>) {
+	for (my $i=0;  $i <= $#ARGV;  $i++) {
+		my $t = $ARGV[$i];
+		if ($line =~ /${t}/i) {
+			my $color_code = $colors[$i % 6];
+			my $set_color  = "\033\[1;${color_code}m";
+			print "\033[1;${color_code}m";
+			$line =~ s/${t}/${color_reverse}${set_color}${t}${reverse_off}${set_color}/gi;
+		}
+	}
+	print $line;
+	print "\033[0m"; #Default color
+}
+
