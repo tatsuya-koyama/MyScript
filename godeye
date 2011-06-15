@@ -72,7 +72,7 @@ sub setFileName {
 	
 	my $dirLevel = getDirLevel( $fileName );
 	$maxDirLv = $dirLevel if ($maxDirLv < $dirLevel);
-	if ($opt{L}  &&  $dirLevel >= $opt{L}) {
+	if ($opt{l}  &&  $dirLevel >= $opt{l}) {
 		$File::Find::prune = 1;
 		return;
 	}
