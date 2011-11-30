@@ -12,6 +12,7 @@ my @colors = (35, 32, 33, 31, 36, 34);
 my $color_reverse = "\033\[0;7m";
 my $reverse_off   = "\033\[0;0m";
 
+$|=1; # enable auto flush
 print '-' x 100, "\n";
 while (my $line = <STDIN>) {
 	for (my $i=0;  $i <= $#ARGV;  $i++) {
@@ -23,6 +24,7 @@ while (my $line = <STDIN>) {
 			$line =~ s/${t}/${color_reverse}${set_color}${t}${reverse_off}${set_color}/gi;
 		}
 	}
+	$line =~ s/\\n/\n/g;
 	print $line;
 	print "\033[0m"; #Default color
 }
