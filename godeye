@@ -6,7 +6,7 @@ godeye --- ver.0.1 --- wrote by Tatsuya Koyama --- 2011-06-14
 
 =head1 SYNOPSIS
 
- だ[USAGE]
+ [USAGE]
     godeye [-d] [-a] [-l level] [-f] [-c column] [-h height] [-b length]
 
  [OPTIONS]
