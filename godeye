@@ -1,34 +1,44 @@
 #!/usr/bin/perl
 
-# godeye --- ver.0.1 --- wrote by Tatsuya Koyama --- 2011-06-14
-#
-# [USAGE]
-#     godeye [-d] [-a] [-l level] [-f] [-c column] [-h height] [-b length]
-#
-# [OPTIONS]
-#     -d       : ディレクトリのみ表示
-#     -a       : ドットから始まる隠しファイルも表示
-#     -l level : 指定した深さまでしか表示しない
-#     -f       : ディレクトリの末尾に、(直下のファイル数 / 下の総ファイル数) を表示
-#     -c column: カラム数を指定
-#     -h height: 基準の表示縦幅を設定
-#     -b length: 枝の長さ（デフォルト 3）
-#
-# 色付きの tree を表示する。
-# まあ tree -F -C --charset ascii で十分なんだけど、
-# ディレクトリレベルに対して色付けしたり、マルチカラムで表示したりしてみたかったので
-# カッとなって書いてしまったやっつけスクリプト。
+=head1 NAME
+
+godeye --- ver.0.1 --- wrote by Tatsuya Koyama --- 2011-06-14
+
+=head1 SYNOPSIS
+
+ だ[USAGE]
+    godeye [-d] [-a] [-l level] [-f] [-c column] [-h height] [-b length]
+
+ [OPTIONS]
+    -d       : ディレクトリのみ表示
+    -a       : ドットから始まる隠しファイルも表示
+    -l level : 指定した深さまでしか表示しない
+    -f       : ディレクトリの末尾に、(直下のファイル数 / 下の総ファイル数) を表示
+    -c column: カラム数を指定
+    -h height: 基準の表示縦幅を設定
+    -b length: 枝の長さ（デフォルト 3）
+    --help   : ヘルプを表示
+
+=head1 DESCRIPTION
+
+色付きの tree を表示する。
+まあ tree -F -C --charset ascii で十分なんだけど、
+ディレクトリレベルに対して色付けしたり、マルチカラムで表示したりしてみたかったので
+カッとなって書いてしまったやっつけスクリプト。
+=cut
 
 use strict;
 use warnings;
+use utf8;
 use Getopt::Long;
+use Pod::Usage;
 use File::Basename;
 use File::Find;
 use File::Path;
 use Term::ReadKey;
 
-GetOptions( \my %opt, qw/d a l:i f c:i h:i b:i/ );
-
+GetOptions( \my %opt, qw/d a l:i f c:i h:i b:i help/ );
+pod2usage(-verbose => 99, -sections => "SYNOPSIS|DESCRIPTION") if $opt{help};
 my $startDir = $ARGV[0] || "./";
 $startDir =~ s(\/$)();
 unless (-d $startDir) {
