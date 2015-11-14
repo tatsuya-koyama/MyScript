@@ -1,6 +1,37 @@
 #!/usr/bin/perl
+
+=head1 NAME
+
+    colorline
+
+=head1 AUTHOR
+
+    Tatsuya Koyama
+
+=head1 DESCRIPTION
+
+    Give a color to text line matched to regular expressions.
+
+=head1 SYNOPSIS
+
+    STANDARD_OUT > colorline [-i|h] PATTERN_1 PATTERN_2 ...
+
+=head1 OPTIONS
+
+    -i --invert : Invert color of text matched to patterns
+    -h --help   : Show this help
+
+=cut
+
+
 use strict;
 use warnings;
+use utf8;
+use Getopt::Long;
+use Pod::Usage;
+
+GetOptions(\my %opt, qw/invert help/);
+pod2usage(-verbose => 99, -sections => "DESCRIPTION|SYNOPSIS|OPTIONS") if $opt{help};
 
 # 36 Cyan
 # 35 Light Purple
@@ -9,23 +40,22 @@ use warnings;
 # 32 Light Green
 # 31 Light Red
 my @colors = (35, 32, 33, 31, 36, 34);
-my $color_reverse = "\033\[0;7m";
-my $reverse_off   = "\033\[0;0m";
+my $color_invert = $opt{invert} ? "\033\[0;7m" : "";
+my $invert_off   = $opt{invert} ? "\033\[0;0m" : "";
 
-$|=1; # enable auto flush
+$|=1;  # enable auto flush
 print '-' x 100, "\n";
-while (my $line = <STDIN>) {
-	for (my $i=0;  $i <= $#ARGV;  $i++) {
-		my $t = $ARGV[$i];
-		if ($line =~ /${t}/i) {
-			my $color_code = $colors[$i % 6];
-			my $set_color  = "\033\[1;${color_code}m";
-			print "\033[1;${color_code}m";
-			$line =~ s/${t}/${color_reverse}${set_color}${t}${reverse_off}${set_color}/gi;
-		}
-	}
-	$line =~ s/\\n/\n/g;
-	print $line;
-	print "\033[0m"; #Default color
-}
 
+while (my $line = <STDIN>) {
+    for (my $i = 0; $i <= $#ARGV; ++$i) {
+        my $pattern = $ARGV[$i];
+        if ($line =~ /${pattern}/i) {
+            my $color_code = $colors[$i % 6];
+            my $set_color  = "\033\[1;${color_code}m";
+            print "\033[1;${color_code}m";
+            $line =~ s/(${pattern})/${color_invert}${set_color}$1${invert_off}${set_color}/gi;
+        }
+    }
+    print $line;
+    print "\033[0m";  # Default color
+}
