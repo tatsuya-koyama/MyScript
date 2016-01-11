@@ -1,0 +1,59 @@
+#!/usr/bin/perl
+
+=head1 NAME
+
+    colorcodes
+
+=head1 AUTHOR
+
+    Tatsuya Koyama
+
+=head1 DESCRIPTION
+
+    Show the list of color code and its color sample.
+
+=head1 SYNOPSIS
+
+    colorcodes
+
+=cut
+
+use strict;
+use warnings;
+use utf8;
+
+my $colors_code_asc  = [30, 31, 32, 33, 34, 35, 36, 37];
+my $colors_gradation = [30, 37, 35, 31, 33, 32, 34, 36];
+my $names = +{
+    30 => "Black",
+    31 => "Red",
+    32 => "Green",
+    33 => "Yellow",
+    34 => "Blue",
+    35 => "Pink",
+    36 => "Cyan",
+    37 => "White",
+};
+my $invert_on  = "\e\[0;7m";
+my $invert_off = "\e\[0;0m";
+
+sub list_colors {
+    my ($colors) = @_;
+    for (my $i = 0; $i < scalar(@$colors); ++$i) {
+        my $code = @$colors[$i];
+        my $op0  = "\e\[0;${code}m";
+        my $op1  = "\e\[1;${code}m";
+        my $name = $names->{$code};
+        printf("${op0}  0;%2d - %6s %4s", $code, $name, "");
+        printf("${op1}  1;%2d - %6s %7s", $code, $name, "");
+        printf("${invert_on}${op1}  1;%2d - %6s %2s${invert_off}\n", $code, $name, "");
+    }
+}
+
+print "\n in asc order ", "-" x 64, "\n\n";
+list_colors($colors_code_asc);
+
+print "\n with gradation ", "-" x 62, "\n\n";
+list_colors($colors_gradation);
+
+print "\e[0m\n";  # Default color
