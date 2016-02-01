@@ -4,11 +4,11 @@ use warnings;
 
 print '-' x 100, "\n";
 while (<>) {
-    print "\033[1;35m" if(/^\+[^\+]/); #Light Purple
-    print "\033[1;34m" if(/^-[^-]/);   #Light Blue
-    print "\033[1;33m" if(/^\+\+\+/);  #Yellow
-    print "\033[1;31m" if(/^---/);     #Light Red
-    print "\033[1;32m" if(/^@@/);      #Light Green
+    print "\033[0;32m" if (/^\+[^\+]/); # Green
+    print "\033[0;31m" if (/^-[^-]/);   # Red
+    print "\033[1;33m" if (/^\+\+\+/);  # Yellow
+    print "\033[1;35m" if (/^---/);     # Pink
+    print "\033[1;36m" if (/^@@/);      # Cyan
     print $_;
-    print "\033[0m"; #Default
+    print "\033[0m"; # Default
 }
