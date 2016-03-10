@@ -1,0 +1,11 @@
+#!/bin/sh
+# Remove CR (carriage return code) from text file
+# * Backup file will be created in /tmp/_remove_cr/
+
+ls -al $1
+FILE_NAME=$(basename ${1})
+mkdir -p /tmp/_remove_cr 2>/dev/null
+cp $1 /tmp/_remove_cr/$FILE_NAME
+tr -d '\r' < /tmp/_remove_cr/$FILE_NAME > $1
+echo " v v v v v"
+ls -al $1
