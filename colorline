@@ -19,6 +19,7 @@
 =head1 OPTIONS
 
     -i --invert : Invert color of text matched to patterns
+    -b --bright : Highlight with bright color
     -h --help   : Show this help
 
 =cut
@@ -30,7 +31,7 @@ use utf8;
 use Getopt::Long;
 use Pod::Usage;
 
-GetOptions(\my %opt, qw/invert help/);
+GetOptions(\my %opt, qw/invert help bright/);
 pod2usage(-verbose => 99, -sections => "DESCRIPTION|SYNOPSIS|OPTIONS") if $opt{help};
 
 # 36 Cyan
@@ -42,6 +43,7 @@ pod2usage(-verbose => 99, -sections => "DESCRIPTION|SYNOPSIS|OPTIONS") if $opt{h
 my @colors = (35, 32, 33, 31, 36, 34);
 my $color_invert = $opt{invert} ? "\033\[0;7m" : "";
 my $invert_off   = $opt{invert} ? "\033\[0;0m" : "";
+my $brightness   = $opt{bright} ? "1" : "0";
 
 $|=1;  # enable auto flush
 print '-' x 100, "\n";
@@ -51,7 +53,7 @@ while (my $line = <STDIN>) {
         my $pattern = $ARGV[$i];
         if ($line =~ /${pattern}/i) {
             my $color_code = $colors[$i % 6];
-            my $set_color  = "\033\[1;${color_code}m";
+            my $set_color  = "\033\[${brightness};${color_code}m";
             print "\033[1;${color_code}m";
             $line =~ s/(${pattern})/${color_invert}${set_color}$1${invert_off}${set_color}/gi;
         }

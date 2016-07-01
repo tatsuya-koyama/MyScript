@@ -23,7 +23,7 @@ use warnings;
 use utf8;
 
 my $colors_code_asc  = [30, 31, 32, 33, 34, 35, 36, 37];
-my $colors_gradation = [30, 37, 35, 31, 33, 32, 34, 36];
+my $colors_gradation = [30, 37, 35, 31, 33, 32, 36, 34];
 my $names = +{
     30 => "Black",
     31 => "Red",
