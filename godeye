@@ -7,7 +7,7 @@ godeye --- ver.0.1 --- wrote by Tatsuya Koyama --- 2011-06-14
 =head1 SYNOPSIS
 
  [USAGE]
-    godeye [-d] [-a] [-l level] [-f] [-c column] [-h height] [-b length]
+    godeye [-d] [-a] [-l level] [-f] [-c column] [-h height] [-b length] [-m]
 
  [OPTIONS]
     -d       : ディレクトリのみ表示
@@ -17,6 +17,7 @@ godeye --- ver.0.1 --- wrote by Tatsuya Koyama --- 2011-06-14
     -c column: カラム数を指定
     -h height: 基準の表示縦幅を設定
     -b length: 枝の長さ（デフォルト 3）
+    -m       : ファイルサイズ [MB] を表示
     --help   : ヘルプを表示
 
 =head1 DESCRIPTION
@@ -37,7 +38,7 @@ use File::Find;
 use File::Path;
 use Term::ReadKey;
 
-GetOptions( \my %opt, qw/d a l:i f c:i h:i b:i help/ );
+GetOptions( \my %opt, qw/d a l:i f c:i h:i b:i m help/ );
 pod2usage(-verbose => 99, -sections => "SYNOPSIS|DESCRIPTION") if $opt{help};
 my $startDir = $ARGV[0] || "./";
 $startDir =~ s(\/$)();
@@ -48,7 +49,7 @@ unless (-d $startDir) {
 
 #---------- working memory
 my ($termWidth, $termHeight) = GetTerminalSize();
-my @fileNames    = ();
+my @fileInfoList = ();
 my $maxDirLv     = 0;
 my $maxLength    = 0;
 my $countDir     = 0;
@@ -94,8 +95,9 @@ sub setFileName {
 		$numOwnFile  = int(`find $_ -type f -maxdepth 1 | wc -l`);
 		$numOwnFileR = int(`find $_ | wc -l`) - 1;
 	}
-	push @fileNames, +{
+	push @fileInfoList, +{
 		name  => $_,
+		path  => $fileName,
 		lv    => $dirLevel,
 		dir   => $isDir,
 		tail  => '',
@@ -107,7 +109,7 @@ sub setFileName {
 
 #---------- set info to make pretty branch
 my $appearFlgs = {};
-for my $i (reverse @fileNames) {
+for my $i (reverse @fileInfoList) {
 	my $f = $appearFlgs;
 	unless ($f->{ $i->{lv} }) {$i->{tail} = 1;}
 	$f->{ $i->{lv} } = 1;
@@ -120,36 +122,45 @@ for my $i (reverse @fileNames) {
 
 #---------- set output results
 my @lines = ();
-for my $i (@fileNames) {
+for my $file (@fileInfoList) {
 	my $colorLine = '';
 	my $plainLine = ''; #----- to count pure text length
 	$colorLine .= getColorCode();
 	
-	for (my $lv = 0;  $lv < $i->{lv};  $lv++) {
+	for (my $lv = 0;  $lv < $file->{lv};  $lv++) {
 		$colorLine .= getColorCodeWithNumber( $lv );
-		my $branch = ($i->{show} & (1 << $lv)) ? '|' : ' ';
+		my $branch = ($file->{show} & (1 << $lv)) ? '|' : ' ';
 		$branch .= ' ' x $branchLength;
 		$colorLine .= $branch;
 		$plainLine .= $branch;
 	}
 	
-	$colorLine .= getColorCodeWithNumber( $i->{lv} );
-	if ($i->{tail}) {
+	$colorLine .= getColorCodeWithNumber( $file->{lv} );
+	if ($file->{tail}) {
 		$colorLine .= '`' .('-' x $branchLength);
 		$plainLine .= '`' .('-' x $branchLength);
 	} else {
-		$colorLine .= '|' .('-' x $branchLength) if ($i->{name} ne $startDir);
-		$plainLine .= '|' .('-' x $branchLength) if ($i->{name} ne $startDir);
+		$colorLine .= '|' .('-' x $branchLength) if ($file->{name} ne $startDir);
+		$plainLine .= '|' .('-' x $branchLength) if ($file->{name} ne $startDir);
 	}
 	
-	$colorLine .= getColorCodeWithNumber( $i->{lv}, 1 ) if $i->{dir};
-	$colorLine .= "$i->{name}".($i->{dir} ? '/' : '');
-	$plainLine .= "$i->{name}".($i->{dir} ? '/' : '');
+	$colorLine .= getColorCodeWithNumber( $file->{lv}, 1 ) if $file->{dir};
+	$colorLine .= "$file->{name}".($file->{dir} ? '/' : '');
+	$plainLine .= "$file->{name}".($file->{dir} ? '/' : '');
 	
-	if ($opt{f}  &&  $i->{dir}) {
-		$colorLine .= getColorCodeWithNumber( $i->{lv}, 0 );
-		$colorLine .= " ($i->{file}/$i->{fileR})";
-		$plainLine .= " ($i->{file}/$i->{fileR})";
+	# set the numbers of children
+	if ($opt{f}  &&  $file->{dir}) {
+		$colorLine .= getColorCodeWithNumber( $file->{lv}, 0 );
+		$colorLine .= " ($file->{file}/$file->{fileR})";
+		$plainLine .= " ($file->{file}/$file->{fileR})";
+	}
+	
+	# set file size [MB]
+	if ($opt{m}) {
+		my $fileSize = getFileSizeStat($file);
+		$colorLine .= getColorCodeWithNumber( $file->{lv}, 0 );
+		$colorLine .= "***  $fileSize MB";
+		$plainLine .= "***  $fileSize MB";
 	}
 	
 	my $lineLength = length($plainLine);
@@ -215,6 +226,19 @@ sub flgsToInt {
 		if ($flgs->{$i}) {$result += (1 << $i);}
 	}
 	return $result;
+}
+
+#-------------------------------------------------------------------------------
+sub getFileSizeStat {
+	my ($file) = @_;
+	my $fullPath = "${startDir}/$file->{path}";
+	$fullPath    =~ s/ /\\ /g;  # escape space
+	my $du       = `du -sk "${startDir}/$file->{path}"`;
+	my $fileSize = 0;
+	if ($du =~ /^(\d*)/) {
+		$fileSize = $1 / 1000;  # MB
+	}
+	return $fileSize;
 }
 
 #-------------------------------------------------------------------------------
