@@ -1,0 +1,75 @@
+#!/usr/bin/perl
+
+=head1 NAME
+
+    gacha
+
+=head1 AUTHOR
+
+    Tatsuya Koyama
+
+=head1 DESCRIPTION
+
+    Simulates Gacha drop rate. Open your eyes to reality.
+
+=head1 SYNOPSIS
+
+    gacha [-p price] [-s step] drop_percent
+
+=head1 OPTIONS
+
+    --help        : Show this help
+    --price price : Price of single Gacha (default is 300)
+    --step step   : Steps for print results (default is 10)
+
+=cut
+
+
+use strict;
+use warnings;
+use utf8;
+use Getopt::Long;
+use Pod::Usage;
+
+binmode(STDOUT, ":utf8");
+
+sub put_line {
+    print "\033\[1;30m" . "-" x 54 . "\033\[0m\n";
+}
+
+my %opt;
+$opt{price} = 300;
+$opt{step}  = 10;
+
+GetOptions(\%opt, qw/help price:i step:i/);
+pod2usage(-verbose => 99, -sections => "DESCRIPTION|SYNOPSIS|OPTIONS") if $opt{help};
+
+my $drop_percent = $ARGV[0] || 3;
+my $drop_rate    = $drop_percent / 100;
+
+print "\n【お目当てのドロップ率】: $drop_percent ％\n\n";
+print "\033\[32m1 個以上引ける確率 :\033\[0m\n";
+
+my $miss_rate = 1;
+my $num_gacha = 0;
+for (1..5) {
+    put_line();
+    for (1..10) {
+        for (1..$opt{step}) {
+            $miss_rate *= (1 - $drop_rate);
+            ++$num_gacha;
+        }
+
+        my $hit_rate     = (1 - $miss_rate) * 100;
+        my $total_price  = $num_gacha * $opt{price};
+        my $expected_try = 100 / $hit_rate;
+        printf("%5d 連"
+                   ." \033\[36m (%6d 円) \033\[0m:"
+                   ." \033\[33m %6.3f ％ \033\[0m"
+                   ." \033\[1;30m|\033\[0m"
+                   ." %3d 連\033\[35m%5.1f \033\[0m回に 1 回\n",
+               $num_gacha, $total_price, $hit_rate, $num_gacha, $expected_try);
+    }
+}
+
+print "\n";
