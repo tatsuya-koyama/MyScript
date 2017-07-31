@@ -34,7 +34,7 @@ use Pod::Usage;
 binmode(STDOUT, ":utf8");
 
 sub put_line {
-    print "\033\[1;30m" . "-" x 54 . "\033\[0m\n";
+    print "\033\[1;30m" . "-" x 59 . "\033\[0m\n";
 }
 
 my %opt;
