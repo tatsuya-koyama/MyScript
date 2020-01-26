@@ -10,15 +10,16 @@ godeye --- ver.0.1 --- wrote by Tatsuya Koyama --- 2011-06-14
     godeye [-d] [-a] [-l level] [-f] [-c column] [-h height] [-b length] [-m]
 
  [OPTIONS]
-    -d       : ディレクトリのみ表示
-    -a       : ドットから始まる隠しファイルも表示
-    -l level : 指定した深さまでしか表示しない
-    -f       : ディレクトリの末尾に、(直下のファイル数 / 下の総ファイル数) を表示
-    -c column: カラム数を指定
-    -h height: 基準の表示縦幅を設定
-    -b length: 枝の長さ（デフォルト 3）
-    -m       : ファイルサイズ [MB] を表示
-    --help   : ヘルプを表示
+    -d         : ディレクトリのみ表示
+    -a         : ドットから始まる隠しファイルも表示
+    -l level   : 指定した深さまでしか表示しない
+    -f         : ディレクトリの末尾に、(直下のファイル数 / 下の総ファイル数) を表示
+    -c column  : カラム数を指定
+    -h height  : 基準の表示縦幅を設定
+    -b length  : 枝の長さ（デフォルト 3）
+    -m         : ファイルサイズ [MB] を表示
+    -i pattern : 除外するファイル名の正規表現
+    --help     : ヘルプを表示
 
 =head1 DESCRIPTION
 
@@ -38,7 +39,7 @@ use File::Find;
 use File::Path;
 use Term::ReadKey;
 
-GetOptions( \my %opt, qw/d a l:i f c:i h:i b:i m help/ );
+GetOptions( \my %opt, qw/d a l:i f c:i h:i b:i m i:s help/ );
 pod2usage(-verbose => 99, -sections => "SYNOPSIS|DESCRIPTION") if $opt{help};
 my $startDir = $ARGV[0] || "./";
 $startDir =~ s(\/$)();
@@ -56,9 +57,10 @@ my $countDir     = 0;
 my $countFile    = 0;
 
 #---------- parameters
-my $branchLength = $opt{b} || 3;
-my $columnMargin = 4;
-my $minHeight    = $termHeight - 9; #----- 最低でもこれ以上の高さになるように表示
+my $branchLength  = $opt{b} || 3;
+my $columnMargin  = 4;
+my $minHeight     = $termHeight - 9; #----- 最低でもこれ以上の高さになるように表示
+my $ignorePattern = $opt{i};
 
 $minHeight = 20 if ($minHeight < 20);
 if ($opt{h}) { $minHeight = $opt{h} || 20; }
@@ -70,24 +72,24 @@ putLine();
 #---------- get file tree
 File::Find::find( \&setFileName, $startDir );
 sub setFileName {
-	++$countDir  if -d $_;
-	++$countFile if -f $_;
 	return if ( $opt{d}  &&  -f $_);
-	
+
 	my $fileName = $File::Find::name;
 	$fileName =~ s(^${startDir}\/?)();
+	return if ( $ignorePattern  &&  $fileName =~ $ignorePattern );
+
 	if (!$opt{a}  &&  ($fileName =~ /^\./  ||  $fileName =~ /\/\./)) {
 		$File::Find::prune = 1;
 		return;
 	}
-	
+
 	my $dirLevel = getDirLevel( $fileName );
 	$maxDirLv = $dirLevel if ($maxDirLv < $dirLevel);
 	if ($opt{l}  &&  $dirLevel >= $opt{l}) {
 		$File::Find::prune = 1;
 		return;
 	}
-	
+
 	my $isDir = (-d $_);
 	my $numOwnFile  = 0;
 	my $numOwnFileR = 0;
@@ -105,6 +107,8 @@ sub setFileName {
 		file  => $numOwnFile,
 		fileR => $numOwnFileR,
 	};
+	++$countDir  if -d $_;
+	++$countFile if -f $_;
 }
 
 #---------- set info to make pretty branch
@@ -114,7 +118,7 @@ for my $i (reverse @fileInfoList) {
 	unless ($f->{ $i->{lv} }) {$i->{tail} = 1;}
 	$f->{ $i->{lv} } = 1;
 	$i->{show} = flgsToInt( $appearFlgs );
-	
+
 	for (my $lv = $i->{lv}+1;  $lv <= $maxDirLv;  $lv++) {
 		if ($f->{$lv}) {$f->{$lv} = 0;}
 	}
@@ -126,7 +130,7 @@ for my $file (@fileInfoList) {
 	my $colorLine = '';
 	my $plainLine = ''; #----- to count pure text length
 	$colorLine .= getColorCode();
-	
+
 	for (my $lv = 0;  $lv < $file->{lv};  $lv++) {
 		$colorLine .= getColorCodeWithNumber( $lv );
 		my $branch = ($file->{show} & (1 << $lv)) ? '|' : ' ';
@@ -134,7 +138,7 @@ for my $file (@fileInfoList) {
 		$colorLine .= $branch;
 		$plainLine .= $branch;
 	}
-	
+
 	$colorLine .= getColorCodeWithNumber( $file->{lv} );
 	if ($file->{tail}) {
 		$colorLine .= '`' .('-' x $branchLength);
@@ -143,18 +147,18 @@ for my $file (@fileInfoList) {
 		$colorLine .= '|' .('-' x $branchLength) if ($file->{name} ne $startDir);
 		$plainLine .= '|' .('-' x $branchLength) if ($file->{name} ne $startDir);
 	}
-	
+
 	$colorLine .= getColorCodeWithNumber( $file->{lv}, 1 ) if $file->{dir};
 	$colorLine .= "$file->{name}".($file->{dir} ? '/' : '');
 	$plainLine .= "$file->{name}".($file->{dir} ? '/' : '');
-	
+
 	# set the numbers of children
 	if ($opt{f}  &&  $file->{dir}) {
 		$colorLine .= getColorCodeWithNumber( $file->{lv}, 0 );
 		$colorLine .= " ($file->{file}/$file->{fileR})";
 		$plainLine .= " ($file->{file}/$file->{fileR})";
 	}
-	
+
 	# set file size [MB]
 	if ($opt{m}) {
 		my $fileSize = getFileSizeStat($file);
@@ -162,7 +166,7 @@ for my $file (@fileInfoList) {
 		$colorLine .= "***  $fileSize MB";
 		$plainLine .= "***  $fileSize MB";
 	}
-	
+
 	my $lineLength = length($plainLine);
 	push @lines, +{ text => $colorLine, len => $lineLength };
 	$maxLength = $lineLength if ($maxLength < $lineLength);
@@ -184,7 +188,7 @@ my $offset = int( $numLine / $numCol );
 $offset += 1 if ($offset * $numCol < $numLine);
 
 for (my $i=0;  $i < $offset;  $i++) {
-	
+
 	my $prevLine;
 	for (my $c=0;  $c < $numCol;  $c++) {
 		my $line = $lines[ ($offset * $c) + $i ];
@@ -247,7 +251,7 @@ sub getColorCode {
 	unless ($colorName) {
 		return "\033[0m"; #Default color
 	}
-	
+
 	my $colors = +{
 		red    => 31,
 		green  => 32,
@@ -272,4 +276,3 @@ sub getColorCodeWithNumber {
 		? "\033[1;${colorCode}m"
 		: "\033[0;${colorCode}m";
 }
-
